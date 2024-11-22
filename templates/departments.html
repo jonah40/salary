@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>部门管理</h2>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">添加新部门</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">部门名称</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">部门描述</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">添加部门</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">部门列表</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>部门名称</th>
+                                    <th>描述</th>
+                                    <th>员工数量</th>
+                                    <th>创建时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dept in departments %}
+                                <tr>
+                                    <td>{{ dept.id }}</td>
+                                    <td>{{ dept.name }}</td>
+                                    <td>{{ dept.description }}</td>
+                                    <td>{{ dept.employees|length }}</td>
+                                    <td>{{ dept.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" onclick="editDepartment({{ dept.id }})">
+                                            编辑
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteDepartment({{ dept.id }})">
+                                            删除
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Department Modal -->
+<div class="modal fade" id="editDepartmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑部门</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editDepartmentForm">
+                    <input type="hidden" id="editDeptId" name="id">
+                    <div class="mb-3">
+                        <label for="editName" class="form-label">部门名称</label>
+                        <input type="text" class="form-control" id="editName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editDescription" class="form-label">部门描述</label>
+                        <textarea class="form-control" id="editDescription" name="description" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="updateDepartment()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editDepartment(deptId) {
+    // 获取部门信息并填充表单
+    fetch(`/departments/${deptId}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('editDeptId').value = data.id;
+            document.getElementById('editName').value = data.name;
+            document.getElementById('editDescription').value = data.description;
+            new bootstrap.Modal(document.getElementById('editDepartmentModal')).show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('获取部门信息失败');
+        });
+}
+
+function updateDepartment() {
+    const deptId = document.getElementById('editDeptId').value;
+    const formData = {
+        name: document.getElementById('editName').value,
+        description: document.getElementById('editDescription').value
+    };
+
+    fetch(`/departments/${deptId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('更新部门失败');
+    });
+}
+
+function deleteDepartment(deptId) {
+    if (confirm('确定要删除这个部门吗？')) {
+        fetch(`/departments/${deptId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('删除部门失败');
+        });
+    }
+}
+</script>
+{% endblock %}

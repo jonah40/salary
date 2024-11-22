@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">薪资统计</h2>
+
+    <!-- 过滤表单 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">筛选条件</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('salary_stats') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">年份</label>
+                    <select name="year" class="form-select">
+                        <option value="">全部</option>
+                        {% for year in years %}
+                        <option value="{{ year[0] }}" {% if current_filters.year == year[0] %}selected{% endif %}>
+                            {{ year[0] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">月份</label>
+                    <select name="month" class="form-select">
+                        <option value="">全部</option>
+                        {% for month in range(1, 13) %}
+                        <option value="{{ month }}" {% if current_filters.month == month %}selected{% endif %}>
+                            {{ month }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">部门</label>
+                    <select name="department_id" class="form-select">
+                        <option value="">全部</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if current_filters.department_id == dept.id %}selected{% endif %}>
+                            {{ dept.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">查询</button>
+                    <a href="{{ url_for('salary_stats') }}" class="btn btn-secondary">重置</a>
+                    <a href="{{ url_for('export_salary_report', **current_filters) }}" class="btn btn-success">
+                        <i class="bi bi-download"></i> 导出Excel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">员工总数</h6>
+                    <h3 class="card-text">{{ totals.employee_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="card-title">工资总额</h6>
+                    <h3 class="card-text">{{ "%.2f"|format(totals.total_salary or 0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="card-title">奖金总额</h6>
+                    <h3 class="card-text">{{ "%.2f"|format(totals.total_bonus or 0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h6 class="card-title">加班费总额</h6>
+                    <h3 class="card-text">{{ "%.2f"|format(totals.total_overtime or 0) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 部门统计表格 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">部门统计</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>部门</th>
+                            <th>员工数</th>
+                            <th>基本工资</th>
+                            <th>奖金</th>
+                            <th>加班费</th>
+                            <th>扣除项</th>
+                            <th>保险</th>
+                            <th>税收</th>
+                            <th>总计</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in stats %}
+                        <tr>
+                            <td>{{ stat.department_name }}</td>
+                            <td>{{ stat.employee_count }}</td>
+                            <td>{{ "%.2f"|format(stat.total_base_salary or 0) }}</td>
+                            <td>{{ "%.2f"|format(stat.total_bonus or 0) }}</td>
+                            <td>{{ "%.2f"|format(stat.total_overtime or 0) }}</td>
+                            <td>{{ "%.2f"|format(stat.total_deductions or 0) }}</td>
+                            <td>{{ "%.2f"|format(stat.total_insurance or 0) }}</td>
+                            <td>{{ "%.2f"|format(stat.total_tax or 0) }}</td>
+                            <td>{{ "%.2f"|format(stat.total_salary or 0) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-primary">
+                            <td><strong>总计</strong></td>
+                            <td><strong>{{ totals.employee_count }}</strong></td>
+                            <td><strong>{{ "%.2f"|format(totals.total_base_salary or 0) }}</strong></td>
+                            <td><strong>{{ "%.2f"|format(totals.total_bonus or 0) }}</strong></td>
+                            <td><strong>{{ "%.2f"|format(totals.total_overtime or 0) }}</strong></td>
+                            <td><strong>{{ "%.2f"|format(totals.total_deductions or 0) }}</strong></td>
+                            <td><strong>{{ "%.2f"|format(totals.total_insurance or 0) }}</strong></td>
+                            <td><strong>{{ "%.2f"|format(totals.total_tax or 0) }}</strong></td>
+                            <td><strong>{{ "%.2f"|format(totals.total_salary or 0) }}</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

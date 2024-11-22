@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">欢迎使用薪酬管理系统</h2>
+        </div>
+    </div>
+
+    {% if current_user.is_admin %}
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">部门管理</h5>
+                    <p class="card-text">管理公司部门结构，添加、修改或删除部门信息。</p>
+                    <a href="{{ url_for('departments') }}" class="btn btn-primary">进入管理</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">员工管理</h5>
+                    <p class="card-text">管理员工信息，包括基本信息、部门分配等。</p>
+                    <a href="{{ url_for('employees') }}" class="btn btn-primary">进入管理</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">薪资管理</h5>
+                    <p class="card-text">管理员工薪资，包括基本工资、奖金、扣除项等。</p>
+                    <a href="{{ url_for('salaries') }}" class="btn btn-primary">进入管理</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">我的薪资信息</h5>
+                    <p class="card-text">查看您的薪资详情、历史记录等信息。</p>
+                    <a href="{{ url_for('my_salary') }}" class="btn btn-primary">查看详情</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

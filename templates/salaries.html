@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mt-4">薪资管理</h2>
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5>添加新薪资记录</h5>
+        </div>
+        <div class="card-body">
+            <form id="addSalaryForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="employee_id" class="form-label">员工</label>
+                            <select class="form-select" id="employee_id" name="employee_id" required>
+                                <option value="">请选择员工</option>
+                                {% for emp in employees %}
+                                <option value="{{ emp.id }}">{{ emp.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="year" class="form-label">年份</label>
+                            <input type="number" class="form-control" id="year" name="year" min="2000" max="2100" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="month" class="form-label">月份</label>
+                            <input type="number" class="form-control" id="month" name="month" min="1" max="12" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="base_salary" class="form-label">基本工资</label>
+                            <input type="number" class="form-control" id="base_salary" name="base_salary" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="bonus" class="form-label">奖金</label>
+                            <input type="number" class="form-control" id="bonus" name="bonus">
+                        </div>
+                        <div class="mb-3">
+                            <label for="overtime_pay" class="form-label">加班费</label>
+                            <input type="number" class="form-control" id="overtime_pay" name="overtime_pay">
+                        </div>
+                        <div class="mb-3">
+                            <label for="deductions" class="form-label">扣除项</label>
+                            <input type="number" class="form-control" id="deductions" name="deductions">
+                        </div>
+                        <div class="mb-3">
+                            <label for="insurance" class="form-label">保险</label>
+                            <input type="number" class="form-control" id="insurance" name="insurance">
+                        </div>
+                        <div class="mb-3">
+                            <label for="tax" class="form-label">税收</label>
+                            <input type="number" class="form-control" id="tax" name="tax">
+                        </div>
+                        <div class="mb-3">
+                            <label for="total" class="form-label">总额</label>
+                            <input type="number" class="form-control" id="total" name="total" readonly>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">提交</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#importModal">
+            <i class="bi bi-upload"></i> 批量导入
+        </button>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5>薪资记录</h5>
+        </div>
+        <div class="card-body">
+            <input type="text" class="form-control mb-3" id="searchInput" placeholder="搜索薪资记录...">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>员工</th>
+                            <th>年份</th>
+                            <th>月份</th>
+                            <th>基本工资</th>
+                            <th>奖金</th>
+                            <th>加班费</th>
+                            <th>扣除项</th>
+                            <th>保险</th>
+                            <th>税收</th>
+                            <th>总额</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for salary in salaries %}
+                        <tr>
+                            <td>{{ salary.employee.name }}</td>
+                            <td>{{ salary.year }}</td>
+                            <td>{{ salary.month }}</td>
+                            <td>{{ salary.base_salary }}</td>
+                            <td>{{ salary.bonus }}</td>
+                            <td>{{ salary.overtime_pay }}</td>
+                            <td>{{ salary.deductions }}</td>
+                            <td>{{ salary.insurance }}</td>
+                            <td>{{ salary.tax }}</td>
+                            <td>{{ salary.total }}</td>
+                            <td>{{ salary.payment_status }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" onclick="editSalary({{ salary.id }})">编辑</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteSalary({{ salary.id }})">删除</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量导入模态框 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">批量导入薪资</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">选择Excel文件</label>
+                        <input type="file" class="form-control" name="file" accept=".xlsx" required>
+                        <div class="form-text">
+                            请使用.xlsx格式的Excel文件，必须包含以下列：员工ID、年份、月份、基本工资
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <a href="{{ url_for('export_salary_report') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-download"></i> 下载模板
+                        </a>
+                    </div>
+                </form>
+                <div id="importResult" class="d-none">
+                    <div class="alert" role="alert"></div>
+                    <div id="importErrors" class="small text-danger"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="importBtn">导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 表单提交
+$('#addSalaryForm').on('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    
+    fetch('/salaries', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('提交失败');
+    });
+});
+
+// 搜索功能
+$('#searchInput').on('keyup', function() {
+    const searchText = $(this).val().toLowerCase();
+    $('tbody tr').filter(function() {
+        $(this).toggle($(this).text().toLowerCase().indexOf(searchText) > -1)
+    });
+});
+
+// 编辑薪资记录
+function editSalary(salaryId) {
+    // 获取当前行的数据
+    const row = $(`button[onclick="editSalary(${salaryId})"]`).closest('tr');
+    const data = {
+        employee_id: row.find('td:eq(0)').data('id'),
+        year: row.find('td:eq(1)').text(),
+        month: row.find('td:eq(2)').text(),
+        base_salary: row.find('td:eq(3)').text(),
+        bonus: row.find('td:eq(4)').text(),
+        overtime_pay: row.find('td:eq(5)').text(),
+        deductions: row.find('td:eq(6)').text(),
+        insurance: row.find('td:eq(7)').text(),
+        tax: row.find('td:eq(8)').text(),
+        remarks: row.find('td:eq(10)').text()
+    };
+
+    // 填充表单
+    $('#employee_id').val(data.employee_id);
+    $('#year').val(data.year);
+    $('#month').val(data.month);
+    $('#base_salary').val(data.base_salary);
+    $('#bonus').val(data.bonus);
+    $('#overtime_pay').val(data.overtime_pay);
+    $('#deductions').val(data.deductions);
+    $('#insurance').val(data.insurance);
+    $('#tax').val(data.tax);
+    
+    // 修改表单提交行为
+    $('#addSalaryForm').off('submit').on('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const updatedData = Object.fromEntries(formData.entries());
+        
+        fetch(`/salaries/${salaryId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(updatedData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('更新失败');
+        });
+    });
+
+    // 滚动到表单
+    $('#addSalaryForm')[0].scrollIntoView({ behavior: 'smooth' });
+}
+
+// 删除薪资记录
+function deleteSalary(salaryId) {
+    if (confirm('确定要删除这个薪资记录吗？')) {
+        fetch(`/salaries/${salaryId}`, {
+            method: 'DELETE',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('删除失败');
+        });
+    }
+}
+
+// 自动计算总薪资
+function calculateTotal() {
+    const baseSalary = parseFloat($('#base_salary').val()) || 0;
+    const bonus = parseFloat($('#bonus').val()) || 0;
+    const overtimePay = parseFloat($('#overtime_pay').val()) || 0;
+    const deductions = parseFloat($('#deductions').val()) || 0;
+    const insurance = parseFloat($('#insurance').val()) || 0;
+    const tax = parseFloat($('#tax').val()) || 0;
+
+    const total = baseSalary + bonus + overtimePay - deductions - insurance - tax;
+    $('#total').val(total.toFixed(2));
+}
+
+// 监听输入变化，实时计算总薪资
+$('#addSalaryForm input[type="number"]').on('input', calculateTotal);
+
+$(document).ready(function() {
+    // 批量导入处理
+    $('#importBtn').click(function() {
+        var formData = new FormData($('#importForm')[0]);
+        var $btn = $(this);
+        var $result = $('#importResult');
+        var $alert = $result.find('.alert');
+        var $errors = $('#importErrors');
+        
+        // 重置显示
+        $result.addClass('d-none');
+        $alert.removeClass('alert-success alert-warning alert-danger');
+        $errors.empty();
+        
+        // 禁用按钮
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> 导入中...');
+        
+        // 发送请求
+        $.ajax({
+            url: '{{ url_for("import_salaries") }}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                $result.removeClass('d-none');
+                
+                // 设置状态样式
+                if (response.status === 'success') {
+                    $alert.addClass('alert-success');
+                } else if (response.status === 'warning') {
+                    $alert.addClass('alert-warning');
+                } else {
+                    $alert.addClass('alert-danger');
+                }
+                
+                // 显示消息
+                $alert.text(response.message);
+                
+                // 显示错误详情
+                if (response.errors && response.errors.length > 0) {
+                    $errors.html(response.errors.join('<br>'));
+                }
+                
+                // 如果导入成功，刷新页面
+                if (response.success_count > 0) {
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 2000);
+                }
+            },
+            error: function(xhr) {
+                $result.removeClass('d-none');
+                $alert.addClass('alert-danger');
+                
+                var error = '导入失败';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    error += '：' + xhr.responseJSON.error;
+                }
+                
+                $alert.text(error);
+            },
+            complete: function() {
+                // 恢复按钮状态
+                $btn.prop('disabled', false).html('导入');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}薪资趋势分析{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- 筛选条件 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="year" class="form-label">年份</label>
+                    <select name="year" id="year" class="form-select">
+                        {% for y in years %}
+                        <option value="{{ y[0] }}" {% if y[0] == current_filters.year %}selected{% endif %}>{{ y[0] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="department_id" class="form-label">部门</label>
+                    <select name="department_id" id="department_id" class="form-select">
+                        <option value="">全部</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if dept.id == current_filters.department_id %}selected{% endif %}>{{ dept.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">筛选</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">同比增长</h5>
+                    <p class="card-text display-6 {% if yoy_growth > 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ "%.2f"|format(yoy_growth) }}%
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 月度薪资趋势图 -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">月度薪资趋势</h5>
+                    <canvas id="monthlyTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 部门平均薪资对比图 -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">部门平均薪资对比</h5>
+                    <canvas id="deptComparisonChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 部门人均薪资排名 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">部门人均薪资排名（Top 5）</h5>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>部门</th>
+                            <th>人均薪资</th>
+                            <th>员工数量</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dept in dept_rankings %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ dept.name }}</td>
+                            <td>¥{{ "%.2f"|format(dept.average) }}</td>
+                            <td>{{ dept.employee_count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 月度薪资趋势图
+    var monthlyCtx = document.getElementById('monthlyTrendChart').getContext('2d');
+    new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+            labels: {{ months|tojson }},
+            datasets: [{
+                label: '月度薪资总额',
+                data: {{ salary_data|tojson }},
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // 部门平均薪资对比图
+    var deptCtx = document.getElementById('deptComparisonChart').getContext('2d');
+    new Chart(deptCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ dept_names|tojson }},
+            datasets: [{
+                label: '部门平均薪资',
+                data: {{ dept_data|tojson }},
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgb(54, 162, 235)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

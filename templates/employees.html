@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>员工管理</h2>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">添加新员工</h5>
+                </div>
+                <div class="card-body">
+                    <form id="addEmployeeForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">姓名</label>
+                                    <input type="text" class="form-control" id="name" name="name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="employee_id" class="form-label">工号</label>
+                                    <input type="text" class="form-control" id="employee_id" name="employee_id" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="department_id" class="form-label">所属部门</label>
+                                    <select class="form-select" id="department_id" name="department_id" required>
+                                        <option value="">请选择部门</option>
+                                        {% for dept in departments %}
+                                        <option value="{{ dept.id }}">{{ dept.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="position" class="form-label">职位</label>
+                                    <input type="text" class="form-control" id="position" name="position" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="entry_date" class="form-label">入职日期</label>
+                                    <input type="date" class="form-control" id="entry_date" name="entry_date" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="status" class="form-label">状态</label>
+                                    <select class="form-select" id="status" name="status">
+                                        <option value="active">在职</option>
+                                        <option value="resigned">离职</option>
+                                        <option value="suspended">停职</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">添加员工</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">员工列表</h5>
+                        <div>
+                            <input type="text" class="form-control" id="searchInput" placeholder="搜索员工...">
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="employeesTable">
+                            <thead>
+                                <tr>
+                                    <th>工号</th>
+                                    <th>姓名</th>
+                                    <th>部门</th>
+                                    <th>职位</th>
+                                    <th>入职日期</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for emp in employees %}
+                                <tr>
+                                    <td>{{ emp.employee_id }}</td>
+                                    <td>{{ emp.name }}</td>
+                                    <td>{{ emp.department.name if emp.department else '未分配' }}</td>
+                                    <td>{{ emp.position }}</td>
+                                    <td>{{ emp.entry_date.strftime('%Y-%m-%d') }}</td>
+                                    <td>
+                                        <span class="badge {% if emp.status == 'active' %}bg-success{% elif emp.status == 'resigned' %}bg-danger{% else %}bg-warning{% endif %}">
+                                            {{ {'active': '在职', 'resigned': '离职', 'suspended': '停职'}[emp.status] }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" onclick="editEmployee({{ emp.id }})">
+                                            编辑
+                                        </button>
+                                        <button class="btn btn-sm btn-info" onclick="viewSalary({{ emp.id }})">
+                                            查看薪资
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Employee Modal -->
+<div class="modal fade" id="editEmployeeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑员工信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editEmployeeForm">
+                    <input type="hidden" id="editEmployeeId">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editName" class="form-label">姓名</label>
+                                <input type="text" class="form-control" id="editName" name="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editEmployeeId" class="form-label">工号</label>
+                                <input type="text" class="form-control" id="editEmployeeId" name="employee_id" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editDepartmentId" class="form-label">所属部门</label>
+                                <select class="form-select" id="editDepartmentId" name="department_id" required>
+                                    <option value="">请选择部门</option>
+                                    {% for dept in departments %}
+                                    <option value="{{ dept.id }}">{{ dept.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editPosition" class="form-label">职位</label>
+                                <input type="text" class="form-control" id="editPosition" name="position" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editEntryDate" class="form-label">入职日期</label>
+                                <input type="date" class="form-control" id="editEntryDate" name="entry_date" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editStatus" class="form-label">状态</label>
+                                <select class="form-select" id="editStatus" name="status">
+                                    <option value="active">在职</option>
+                                    <option value="resigned">离职</option>
+                                    <option value="suspended">停职</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="updateEmployee()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('addEmployeeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    
+    fetch('/employees', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('添加员工失败');
+    });
+});
+
+function editEmployee(empId) {
+    fetch(`/employees/${empId}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('editEmployeeId').value = data.id;
+            document.getElementById('editName').value = data.name;
+            document.getElementById('editEmployeeId').value = data.employee_id;
+            document.getElementById('editDepartmentId').value = data.department_id;
+            document.getElementById('editPosition').value = data.position;
+            document.getElementById('editEntryDate').value = data.entry_date;
+            document.getElementById('editStatus').value = data.status;
+            new bootstrap.Modal(document.getElementById('editEmployeeModal')).show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('获取员工信息失败');
+        });
+}
+
+function updateEmployee() {
+    const empId = document.getElementById('editEmployeeId').value;
+    const formData = new FormData(document.getElementById('editEmployeeForm'));
+    const data = Object.fromEntries(formData.entries());
+
+    fetch(`/employees/${empId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('更新员工信息失败');
+    });
+}
+
+function viewSalary(empId) {
+    window.location.href = `/salaries/${empId}`;
+}
+
+// 搜索功能
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchText = this.value.toLowerCase();
+    const table = document.getElementById('employeesTable');
+    const rows = table.getElementsByTagName('tr');
+
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const cells = row.getElementsByTagName('td');
+        let found = false;
+
+        for (let j = 0; j < cells.length; j++) {
+            const cell = cells[j];
+            if (cell.textContent.toLowerCase().indexOf(searchText) > -1) {
+                found = true;
+                break;
+            }
+        }
+
+        row.style.display = found ? '' : 'none';
+    }
+});
+</script>
+{% endblock %}

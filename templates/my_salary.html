@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mt-4">我的薪资记录</h2>
+    
+    {% if employee %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5>员工信息</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <p><strong>姓名：</strong>{{ employee.name }}</p>
+                </div>
+                <div class="col-md-4">
+                    <p><strong>工号：</strong>{{ employee.employee_id }}</p>
+                </div>
+                <div class="col-md-4">
+                    <p><strong>部门：</strong>{{ employee.department.name if employee.department else '未分配' }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5>薪资历史</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>年份</th>
+                            <th>月份</th>
+                            <th>基本工资</th>
+                            <th>奖金</th>
+                            <th>加班费</th>
+                            <th>扣除项</th>
+                            <th>保险</th>
+                            <th>税收</th>
+                            <th>总额</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for salary in salaries %}
+                        <tr>
+                            <td>{{ salary.year }}</td>
+                            <td>{{ salary.month }}</td>
+                            <td>{{ "%.2f"|format(salary.base_salary) }}</td>
+                            <td>{{ "%.2f"|format(salary.bonus) }}</td>
+                            <td>{{ "%.2f"|format(salary.overtime_pay) }}</td>
+                            <td>{{ "%.2f"|format(salary.deductions) }}</td>
+                            <td>{{ "%.2f"|format(salary.insurance) }}</td>
+                            <td>{{ "%.2f"|format(salary.tax) }}</td>
+                            <td><strong>{{ "%.2f"|format(salary.total) }}</strong></td>
+                            <td>
+                                <span class="badge {% if salary.payment_status == 'paid' %}bg-success{% else %}bg-warning{% endif %}">
+                                    {{ salary.payment_status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if not salaries %}
+            <div class="alert alert-info">
+                暂无薪资记录
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning mt-4">
+        未找到您的员工信息，请联系管理员。
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// 如果需要添加图表或其他交互功能，可以在这里添加JavaScript代码
+</script>
+{% endblock %}
