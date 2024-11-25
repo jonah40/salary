@@ -8,6 +8,7 @@ import io
 import xlsxwriter
 from flask import send_file
 import pandas as pd
+import logging
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_key_please_change_in_production')
@@ -275,113 +276,160 @@ def salaries():
     if not current_user.is_admin:
         flash('权限不足！', 'error')
         return redirect(url_for('index'))
-
-    if request.method == 'POST':
-        data = request.json
+    
+    try:
+        if request.method == 'POST':
+            data = request.json
+            logging.info(f'Received data for new salary record: {data}')  # 添加日志记录
+            
+            # 验证数据
+            errors = validate_salary_data(data)
+            if errors:
+                logging.warning(f'Data validation errors: {errors}')  # 添加日志记录
+                return jsonify({'error': ' '.join(errors)}), 400
+                
+            try:
+                # 检查是否已存在该月薪资记录
+                existing_salary = Salary.query.filter_by(
+                    employee_id=data['employee_id'],
+                    year=data['year'],
+                    month=data['month']
+                ).first()
+                
+                if existing_salary:
+                    logging.warning('Salary record already exists for this employee and month')  # 添加日志记录
+                    return jsonify({'error': '该员工本月薪资记录已存在'}), 400
+                
+                # 计算总薪资
+                total = (
+                    float(data['base_salary']) +
+                    float(data.get('bonus', 0)) +
+                    float(data.get('overtime_pay', 0)) -
+                    float(data.get('deductions', 0)) -
+                    float(data.get('insurance', 0)) -
+                    float(data.get('tax', 0))
+                )
+                logging.info(f'Calculated total salary: {total}')  # 添加日志记录
+                
+                salary = Salary(
+                    employee_id=data['employee_id'],
+                    year=data['year'],
+                    month=data['month'],
+                    base_salary=data['base_salary'],
+                    bonus=data.get('bonus', 0),
+                    overtime_pay=data.get('overtime_pay', 0),
+                    deductions=data.get('deductions', 0),
+                    insurance=data.get('insurance', 0),
+                    tax=data.get('tax', 0),
+                    total=total,
+                    remarks=data.get('remarks', '')
+                )
+                db.session.add(salary)
+                db.session.commit()
+                logging.info('Salary record added successfully')
+                return jsonify({'message': '薪资记录添加成功'})
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f'Error saving salary record: {e}')
+                return jsonify({'error': f'保存失败：{str(e)}'}), 400
         
-        # 验证数据
-        errors = validate_salary_data(data)
-        if errors:
-            return jsonify({'error': ' '.join(errors)}), 400
-            
+        # 获取查询参数
+        page = request.args.get('page', 1, type=int)
+        per_page = 10
+        search = request.args.get('search', '')
+        year = request.args.get('year', type=int)
+        month = request.args.get('month', type=int)
+        department_id = request.args.get('department_id', type=int)
+        min_salary = request.args.get('min_salary', type=float)
+        max_salary = request.args.get('max_salary', type=float)
+        
+        print("\n=== DEBUG: Salary Query Parameters ===")
+        print(f"Page: {page}")
+        print(f"Search: {search}")
+        print(f"Year: {year}")
+        print(f"Month: {month}")
+        print(f"Department ID: {department_id}")
+        print(f"Min Salary: {min_salary}")
+        print(f"Max Salary: {max_salary}")
+        
         try:
-            # 检查是否已存在该月薪资记录
-            existing_salary = Salary.query.filter_by(
-                employee_id=data['employee_id'],
-                year=data['year'],
-                month=data['month']
-            ).first()
+            # 基础查询
+            query = db.session.query(Salary).join(Employee)
             
-            if existing_salary:
-                return jsonify({'error': '该员工本月薪资记录已存在'}), 400
+            # 检查是否有任何薪资记录
+            total_records = Salary.query.count()
+            total_employees = Employee.query.count()
+            print(f"\n=== DEBUG: Database Status ===")
+            print(f"Total Salary Records: {total_records}")
+            print(f"Total Employees: {total_employees}")
             
-            # 计算总薪资
-            total = (
-                float(data['base_salary']) +
-                float(data.get('bonus', 0)) +
-                float(data.get('overtime_pay', 0)) -
-                float(data.get('deductions', 0)) -
-                float(data.get('insurance', 0)) -
-                float(data.get('tax', 0))
-            )
+            # 应用过滤器
+            if search:
+                query = query.filter(Employee.name.ilike(f'%{search}%'))
+            if year:
+                query = query.filter(Salary.year == year)
+            if month:
+                query = query.filter(Salary.month == month)
+            if department_id:
+                query = query.filter(Employee.department_id == department_id)
+            if min_salary is not None:
+                query = query.filter(Salary.total >= min_salary)
+            if max_salary is not None:
+                query = query.filter(Salary.total <= max_salary)
             
-            salary = Salary(
-                employee_id=data['employee_id'],
-                year=data['year'],
-                month=data['month'],
-                base_salary=data['base_salary'],
-                bonus=data.get('bonus', 0),
-                overtime_pay=data.get('overtime_pay', 0),
-                deductions=data.get('deductions', 0),
-                insurance=data.get('insurance', 0),
-                tax=data.get('tax', 0),
-                total=total,
-                remarks=data.get('remarks', '')
-            )
-            db.session.add(salary)
-            db.session.commit()
-            return jsonify({'message': '薪资记录添加成功'})
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'error': f'保存失败：{str(e)}'}), 400
+            # 排序
+            query = query.order_by(Salary.year.desc(), Salary.month.desc())
+            
+            # 获取原始SQL
+            print(f"\n=== DEBUG: SQL Query ===")
+            print(str(query.statement.compile(compile_kwargs={"literal_binds": True})))
+            
+            # 执行分页查询
+            pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+            salaries = pagination.items
+            
+            print(f"\n=== DEBUG: Query Results ===")
+            print(f"Number of records found: {len(salaries)}")
+            if salaries:
+                print("First record sample:")
+                print(f"Employee: {salaries[0].employee.name}")
+                print(f"Year: {salaries[0].year}")
+                print(f"Month: {salaries[0].month}")
+                print(f"Total: {salaries[0].total}")
+            else:
+                print("No records found.")
 
-    # 获取查询参数
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
-    search = request.args.get('search', '')
-    year = request.args.get('year', type=int)
-    month = request.args.get('month', type=int)
-    department_id = request.args.get('department_id', type=int)
-    min_salary = request.args.get('min_salary', type=float)
-    max_salary = request.args.get('max_salary', type=float)
+            # 获取所有员工信息
+            employees = Employee.query.filter_by(status='active').all()
+            
+            return render_template('salaries.html', salaries=salaries, pagination=pagination, employees=employees)
+        except Exception as e:
+            logging.error(f"Error querying salaries: {e}")
+            return jsonify({'error': '查询失败'}), 500
+
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+# 查看指定员工的薪资记录
+@app.route('/salaries/<int:emp_id>')
+@login_required
+def view_employee_salaries(emp_id):
+    if not current_user.is_admin:
+        flash('权限不足！', 'error')
+        return redirect(url_for('index'))
     
-    # 构建查询
-    query = Salary.query.join(Employee)
-    
-    # 应用过滤条件
-    if search:
-        query = query.filter(Employee.name.ilike(f'%{search}%'))
-    if year:
-        query = query.filter(Salary.year == year)
-    if month:
-        query = query.filter(Salary.month == month)
-    if department_id:
-        query = query.filter(Employee.department_id == department_id)
-    if min_salary is not None:
-        query = query.filter(Salary.total >= min_salary)
-    if max_salary is not None:
-        query = query.filter(Salary.total <= max_salary)
-    
-    # 排序
-    query = query.order_by(Salary.year.desc(), Salary.month.desc())
-    
-    # 执行分页查询
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    salaries = pagination.items
-    
-    # 获取所有部门和活跃员工（用于表单）
-    departments = Department.query.all()
-    employees = Employee.query.filter_by(status='active').all()
-    
-    # 获取年份和月份选项（用于过滤）
-    years = db.session.query(db.distinct(Salary.year)).order_by(Salary.year.desc()).all()
-    months = list(range(1, 13))
+    employee = Employee.query.get_or_404(emp_id)
+    salaries = Salary.query.filter_by(employee_id=emp_id).order_by(Salary.year.desc(), Salary.month.desc()).all()
     
     return render_template('salaries.html',
+                         employee=employee,
                          salaries=salaries,
-                         pagination=pagination,
-                         employees=employees,
-                         departments=departments,
-                         years=years,
-                         months=months,
-                         current_filters={
-                             'search': search,
-                             'year': year,
-                             'month': month,
-                             'department_id': department_id,
-                             'min_salary': min_salary,
-                             'max_salary': max_salary
-                         })
+                         viewing_employee=True,
+                         employees=[employee],  # 只显示当前员工
+                         departments=Department.query.all(),
+                         years=db.session.query(db.distinct(Salary.year)).order_by(Salary.year.desc()).all(),
+                         months=list(range(1, 13)))
 
 # 批量导入薪资
 @app.route('/import-salaries', methods=['POST'])
@@ -517,6 +565,7 @@ def import_salaries():
         
     except Exception as e:
         db.session.rollback()
+        logging.error(f'Error importing salaries: {e}')
         return jsonify({
             'status': 'error',
             'message': '导入失败',
@@ -571,9 +620,11 @@ def update_salary(salary_id):
         salary.remarks = data.get('remarks', '')
         
         db.session.commit()
+        logging.info('Salary record updated successfully')
         return jsonify({'message': '薪资记录更新成功'})
     except Exception as e:
         db.session.rollback()
+        logging.error(f'Error updating salary record: {e}')
         return jsonify({'error': f'更新失败：{str(e)}'}), 400
 
 # 删除薪资记录
@@ -587,9 +638,11 @@ def delete_salary(salary_id):
     try:
         db.session.delete(salary)
         db.session.commit()
+        logging.info('Salary record deleted successfully')
         return jsonify({'message': '薪资记录删除成功'})
     except Exception as e:
         db.session.rollback()
+        logging.error(f'Error deleting salary record: {e}')
         return jsonify({'error': f'删除失败：{str(e)}'}), 400
 
 # 查看个人薪资
@@ -649,30 +702,143 @@ def salary_stats():
     
     # 计算总计
     totals = {
-        'employee_count': sum(s.employee_count for s in stats),
-        'total_base_salary': sum(s.total_base_salary for s in stats),
-        'total_bonus': sum(s.total_bonus for s in stats),
-        'total_overtime': sum(s.total_overtime for s in stats),
-        'total_deductions': sum(s.total_deductions for s in stats),
-        'total_insurance': sum(s.total_insurance for s in stats),
-        'total_tax': sum(s.total_tax for s in stats),
-        'total_salary': sum(s.total_salary for s in stats)
+        'employee_count': db.session.query(db.func.count(db.distinct(Employee.id))).scalar(),
+        'department_count': Department.query.count(),
+        'avg_salary': db.session.query(db.func.avg(Salary.total)).filter(Salary.year == year).scalar() or 0,
+        'min_salary': db.session.query(db.func.min(Salary.total)).filter(Salary.year == year).scalar() or 0,
+        'max_salary': db.session.query(db.func.max(Salary.total)).filter(Salary.year == year).scalar() or 0,
+        'total_salary': db.session.query(db.func.sum(Salary.total)).filter(Salary.year == year).scalar() or 0,
+        'total_bonus': db.session.query(db.func.sum(Salary.bonus)).filter(Salary.year == year).scalar() or 0,
+        'total_overtime': db.session.query(db.func.sum(Salary.overtime_pay)).filter(Salary.year == year).scalar() or 0,
+        'total_deductions': db.session.query(db.func.sum(Salary.deductions)).filter(Salary.year == year).scalar() or 0,
+        'total_insurance': db.session.query(db.func.sum(Salary.insurance)).filter(Salary.year == year).scalar() or 0,
+        'total_tax': db.session.query(db.func.sum(Salary.tax)).filter(Salary.year == year).scalar() or 0
     }
     
-    # 获取年份和部门选项（用于过滤）
-    years = db.session.query(db.distinct(Salary.year)).order_by(Salary.year.desc()).all()
-    departments = Department.query.all()
+    # 计算总体同比增长率
+    current_year_total = db.session.query(db.func.sum(Salary.total))\
+        .filter(Salary.year == year)
+    last_year_total = db.session.query(db.func.sum(Salary.total))\
+        .filter(Salary.year == year - 1)
+        
+    if department_id:
+        current_year_total = current_year_total.join(Employee)\
+            .filter(Employee.department_id == department_id)
+        last_year_total = last_year_total.join(Employee)\
+            .filter(Employee.department_id == department_id)
+    
+    current_year_total = current_year_total.scalar() or 0
+    last_year_total = last_year_total.scalar() or 0
+    
+    yoy_growth = 0
+    if last_year_total > 0:
+        yoy_growth = ((current_year_total - last_year_total) / last_year_total) * 100
+    
+    # 按月份统计薪资总额
+    monthly_totals = db.session.query(
+        Salary.month,
+        db.func.sum(Salary.total).label('total_salary'),
+        db.func.avg(Salary.total).label('avg_salary'),
+        db.func.count(Salary.id).label('salary_count')
+    ).select_from(Salary).join(Employee)
+    
+    if year:
+        monthly_totals = monthly_totals.filter(Salary.year == year)
+    if department_id:
+        monthly_totals = monthly_totals.filter(Employee.department_id == department_id)
+        
+    monthly_totals = monthly_totals.group_by(Salary.month).all()
+    
+    # 转换为图表数据
+    months = [f"{i}月" for i in range(1, 13)]
+    salary_data = [0] * 12
+    avg_salary_data = [0] * 12
+    salary_count_data = [0] * 12
+    
+    for month, total, avg, count in monthly_totals:
+        salary_data[month-1] = float(total or 0)
+        avg_salary_data[month-1] = float(avg or 0)
+        salary_count_data[month-1] = int(count or 0)
+    
+    # 按部门统计平均薪资和人数
+    dept_stats = db.session.query(
+        Department.name,
+        db.func.avg(Salary.total).label('avg_salary'),
+        db.func.count(db.distinct(Employee.id)).label('emp_count'),
+        db.func.sum(Salary.total).label('total_salary'),
+        db.func.min(Salary.total).label('min_salary'),
+        db.func.max(Salary.total).label('max_salary')
+    ).select_from(Department).join(Employee).join(Salary)
+    
+    if year:
+        dept_stats = dept_stats.filter(Salary.year == year)
+        
+    dept_stats = dept_stats.group_by(Department.name).all()
+    
+    # 转换为图表数据
+    dept_names = [dept[0] for dept in dept_stats]
+    dept_data = {
+        'avg': [float(stats[1] or 0) for stats in dept_stats],
+        'count': [int(stats[2] or 0) for stats in dept_stats],
+        'total': [float(stats[3] or 0) for stats in dept_stats],
+        'min': [float(stats[4] or 0) for stats in dept_stats],
+        'max': [float(stats[5] or 0) for stats in dept_stats]
+    }
+    
+    # 计算月度同比增长率
+    growth_rates = []
+    if year > 2000:
+        for month in range(1, 13):
+            current_month = db.session.query(db.func.sum(Salary.total))\
+                .filter(Salary.year == year, Salary.month == month)
+            last_year = db.session.query(db.func.sum(Salary.total))\
+                .filter(Salary.year == year - 1, Salary.month == month)
+            
+            if department_id:
+                current_month = current_month.join(Employee)\
+                    .filter(Employee.department_id == department_id)
+                last_year = last_year.join(Employee)\
+                    .filter(Employee.department_id == department_id)
+            
+            current_value = current_month.scalar() or 0
+            last_value = last_year.scalar() or 0
+            
+            if last_value > 0:
+                growth = ((current_value - last_value) / last_value) * 100
+            else:
+                growth = 0
+            growth_rates.append(float(growth))
+    else:
+        growth_rates = [0] * 12
+    
+    # 计算部门薪资排名
+    dept_rankings = []
+    for i, dept in enumerate(dept_stats):
+        dept_rankings.append({
+            'name': dept[0],
+            'average': dept_data['avg'][i],
+            'employee_count': dept_data['count'][i],
+            'total': dept_data['total'][i],
+            'min': dept_data['min'][i],
+            'max': dept_data['max'][i]
+        })
+    
+    dept_rankings.sort(key=lambda x: x['average'], reverse=True)
     
     return render_template('salary_stats.html',
-                         stats=stats,
-                         totals=totals,
-                         years=years,
-                         departments=departments,
-                         current_filters={
-                             'year': year,
-                             'month': month,
-                             'department_id': department_id
-                         })
+        years=db.session.query(db.distinct(Salary.year)).order_by(Salary.year.desc()).all(),
+        departments=Department.query.all(),
+        current_filters={'year': year, 'department_id': department_id},
+        overall_stats=totals,
+        months=months,
+        salary_data=salary_data,
+        avg_salary_data=avg_salary_data,
+        growth_rates=growth_rates,
+        dept_names=dept_names,
+        dept_data=dept_data,
+        dept_rankings=dept_rankings[:5],  # Top 5 departments
+        yoy_growth=yoy_growth  # Added overall year-over-year growth rate
+    )
 
 # 导出薪资报表
 @app.route('/export-salary-report')
@@ -953,6 +1119,7 @@ def salary_trends():
     )
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     with app.app_context():
         db.create_all()
         # 创建管理员账户（如果不存在）
